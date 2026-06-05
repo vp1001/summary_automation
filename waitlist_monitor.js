@@ -63,11 +63,16 @@ async function getWaitlistCount() {
 
 async function sendReply({ to, subject, messageId, count }) {
   const transporter = nodemailer.createTransport({
-    service: "gmail",
+    host: "smtp.gmail.com",
+    port: 465,
+    secure: true,
     auth: {
       user: CONFIG.gmail.user,
       pass: CONFIG.gmail.appPassword,
     },
+    connectionTimeout: 15000,
+    greetingTimeout: 15000,
+    socketTimeout: 20000,
   });
 
   const now = new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
