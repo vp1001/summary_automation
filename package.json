@@ -1,0 +1,14 @@
+{
+  "name": "waitlist-monitor",
+  "version": "1.0.0",
+  "description": "MongoDB waitlist monitor triggered by email",
+  "main": "waitlist_monitor.js",
+  "scripts": {
+    "start": "node waitlist_monitor.js"
+  },
+  "dependencies": {
+    "imapflow": "^1.0.162",
+    "mongodb": "^6.8.0",
+    "nodemailer": "^6.9.14"
+  }
+}

@@ -1,0 +1,7 @@
+services:
+  - type: worker
+    name: waitlist-monitor
+    runtime: node
+    buildCommand: npm install
+    startCommand: npm start
+    plan: free
