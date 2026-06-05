@@ -64,8 +64,9 @@ async function getWaitlistCount() {
 async function sendReply({ to, subject, messageId, count }) {
   const transporter = nodemailer.createTransport({
     host: "smtp.gmail.com",
-    port: 465,
-    secure: true,
+    port: 587,
+    secure: false,
+    requireTLS: true,
     auth: {
       user: CONFIG.gmail.user,
       pass: CONFIG.gmail.appPassword,
