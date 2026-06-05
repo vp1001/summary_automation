@@ -6,13 +6,10 @@
  * it replies with the current MongoDB waitlist document count.
  *
  * SETUP:
- *   npm install imapflow nodemailer mongodb dotenv
+ *   npm install imapflow nodemailer mongodb
  *
  * RUN:
  *   node waitlist_monitor.js
- *
- * TRIGGER:
- *   Send any email to vedantp28@gmail.com with subject containing "GET_COUNT"
  */
 
 const { ImapFlow } = require("imapflow");
@@ -34,8 +31,8 @@ const CONFIG = {
     collection: "waitlist",
   },
   trigger: {
-    keyword: "GET_COUNT",      // keyword to look for in email subject
-    pollIntervalMs: 30_000,    // how often to check inbox (30 seconds)
+    keyword: "GET_COUNT",
+    pollIntervalMs: 30_000,
   },
 };
 
@@ -44,7 +41,10 @@ const CONFIG = {
 // ---------------------------------------------------------------------------
 
 async function getWaitlistCount() {
-  const client = new MongoClient(CONFIG.mongo.uri);
+  const client = new MongoClient(CONFIG.mongo.uri, {
+    serverSelectionTimeoutMS: 10000,
+    connectTimeoutMS: 10000,
+  });
   try {
     await client.connect();
     const count = await client
@@ -128,7 +128,9 @@ async function pollInbox() {
       user: CONFIG.gmail.user,
       pass: CONFIG.gmail.appPassword,
     },
-    logger: false, // set to true for verbose IMAP logs
+    logger: false,
+    // Keep connection alive with a timeout
+    socketTimeout: 20000,
   });
 
   try {
@@ -136,11 +138,11 @@ async function pollInbox() {
     const lock = await client.getMailboxLock("INBOX");
 
     try {
-      // Search for unread emails with the trigger keyword in subject
-      const uids = await client.search({
-        unseen: true,
-        subject: CONFIG.trigger.keyword,
-      });
+      // Search for unread emails with the trigger keyword
+      const uids = await client.search(
+        { unseen: true, subject: CONFIG.trigger.keyword },
+        { uid: true }
+      );
 
       if (uids.length === 0) {
         console.log(`[${timestamp()}] No trigger emails found.`);
@@ -150,12 +152,17 @@ async function pollInbox() {
       console.log(`[${timestamp()}] 🎯 Found ${uids.length} trigger email(s)!`);
 
       for (const uid of uids) {
+        // ✅ Mark as read FIRST — prevents re-triggering even if later steps fail
+        await client.messageFlagsAdd({ uid }, ["\\Seen"], { uid: true });
+        console.log(`[${timestamp()}] ✔️  Marked UID ${uid} as read.`);
+
         try {
           // Fetch email details
-          const msg = await client.fetchOne(uid, {
-            envelope: true,
-            source: false,
-          });
+          const msg = await client.fetchOne(
+            uid,
+            { envelope: true },
+            { uid: true }
+          );
 
           const from      = msg.envelope.from?.[0];
           const replyTo   = from?.address;
@@ -173,12 +180,8 @@ async function pollInbox() {
           await sendReply({ to: replyTo, subject, messageId, count });
           console.log(`[${timestamp()}] 📧 Reply sent to ${replyTo}`);
 
-          // Mark as read so it doesn't trigger again
-          await client.messageFlagsAdd(uid, ["\\Seen"]);
-          console.log(`[${timestamp()}] ✔️  Marked as read.`);
-
         } catch (err) {
-          console.error(`[${timestamp()}] ❌ Error processing email:`, err.message);
+          console.error(`[${timestamp()}] ❌ Error processing email UID ${uid}:`, err.message);
         }
       }
 
@@ -190,6 +193,8 @@ async function pollInbox() {
 
   } catch (err) {
     console.error(`[${timestamp()}] ❌ IMAP error:`, err.message);
+    // Try to close the connection cleanly
+    try { await client.logout(); } catch (_) {}
   }
 }
 
