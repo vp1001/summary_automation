@@ -39,7 +39,7 @@ const CONFIG = {
   mongo: {
     uri: "mongodb+srv://vedantp28_db_user:12349876@clusterelvn.f3spvav.mongodb.net/?appName=ClusterELVN",
     database: "test",
-    collection: "waitlist",
+    collection: "waitlists",
   },
   trigger: {
     keyword: "GET_COUNT",
