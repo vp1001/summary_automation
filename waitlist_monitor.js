@@ -1,20 +1,20 @@
 /**
  * MongoDB Waitlist Monitor — Email Trigger
  * -----------------------------------------
- * Polls your Gmail inbox every 30 seconds.
+ * Polls your Gmail inbox every 30 seconds via IMAP.
  * When it finds an unread email with "GET_COUNT" in the subject,
- * it replies with the current MongoDB waitlist document count.
+ * it replies with the current MongoDB waitlist document count via Resend.
  *
  * SETUP:
- *   npm install imapflow nodemailer mongodb
+ *   npm install imapflow mongodb resend
  *
  * RUN:
  *   node waitlist_monitor.js
  */
 
 const { ImapFlow } = require("imapflow");
-const nodemailer = require("nodemailer");
 const { MongoClient } = require("mongodb");
+const { Resend } = require("resend");
 
 // ---------------------------------------------------------------------------
 // CONFIG
@@ -24,6 +24,10 @@ const CONFIG = {
   gmail: {
     user: "vedantp28@gmail.com",
     appPassword: "urxu dinj ztoo zewb",
+  },
+  resend: {
+    apiKey: "re_PL6XuvXe_3dWuEBmrHd12HnnfRwBqwYRo",
+    from: "Waitlist Monitor <onboarding@resend.dev>", // free Resend sender
   },
   mongo: {
     uri: "mongodb+srv://vedantp28_db_user:12349876@clusterelvn.f3spvav.mongodb.net/?appName=ClusterELVN",
@@ -35,6 +39,8 @@ const CONFIG = {
     pollIntervalMs: 30_000,
   },
 };
+
+const resend = new Resend(CONFIG.resend.apiKey);
 
 // ---------------------------------------------------------------------------
 // MongoDB — count documents
@@ -58,35 +64,12 @@ async function getWaitlistCount() {
 }
 
 // ---------------------------------------------------------------------------
-// Gmail SMTP — send reply
+// Resend — send reply
 // ---------------------------------------------------------------------------
 
 async function sendReply({ to, subject, messageId, count }) {
-  const transporter = nodemailer.createTransport({
-    host: "smtp.gmail.com",
-    port: 587,
-    secure: false,
-    requireTLS: true,
-    auth: {
-      user: CONFIG.gmail.user,
-      pass: CONFIG.gmail.appPassword,
-    },
-    connectionTimeout: 15000,
-    greetingTimeout: 15000,
-    socketTimeout: 20000,
-  });
-
   const now = new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
   const replySubject = subject.startsWith("Re:") ? subject : `Re: ${subject}`;
-
-  const text = [
-    `📋 Waitlist Report`,
-    `------------------`,
-    `Database   : ${CONFIG.mongo.database}`,
-    `Collection : ${CONFIG.mongo.collection}`,
-    `Count      : ${count.toLocaleString()}`,
-    `Checked at : ${now} IST`,
-  ].join("\n");
 
   const html = `
     <h2 style="font-family:sans-serif;">📋 Waitlist Report</h2>
@@ -110,15 +93,18 @@ async function sendReply({ to, subject, messageId, count }) {
     </table>
   `;
 
-  await transporter.sendMail({
-    from: CONFIG.gmail.user,
+  const { error } = await resend.emails.send({
+    from: CONFIG.resend.from,
     to,
     subject: replySubject,
-    text,
     html,
-    inReplyTo: messageId,
-    references: messageId,
+    headers: {
+      "In-Reply-To": messageId,
+      "References": messageId,
+    },
   });
+
+  if (error) throw new Error(error.message);
 }
 
 // ---------------------------------------------------------------------------
@@ -135,7 +121,6 @@ async function pollInbox() {
       pass: CONFIG.gmail.appPassword,
     },
     logger: false,
-    // Keep connection alive with a timeout
     socketTimeout: 20000,
   });
 
@@ -144,7 +129,6 @@ async function pollInbox() {
     const lock = await client.getMailboxLock("INBOX");
 
     try {
-      // Search for unread emails with the trigger keyword
       const uids = await client.search(
         { unseen: true, subject: CONFIG.trigger.keyword },
         { uid: true }
@@ -158,12 +142,11 @@ async function pollInbox() {
       console.log(`[${timestamp()}] 🎯 Found ${uids.length} trigger email(s)!`);
 
       for (const uid of uids) {
-        // ✅ Mark as read FIRST — prevents re-triggering even if later steps fail
+        // Mark as read FIRST — prevents re-triggering if later steps fail
         await client.messageFlagsAdd({ uid }, ["\\Seen"], { uid: true });
         console.log(`[${timestamp()}] ✔️  Marked UID ${uid} as read.`);
 
         try {
-          // Fetch email details
           const msg = await client.fetchOne(
             uid,
             { envelope: true },
@@ -176,13 +159,11 @@ async function pollInbox() {
           const messageId = msg.envelope.messageId;
 
           console.log(`[${timestamp()}] 📨 Triggered by: ${replyTo} — "${subject}"`);
-
-          // Get MongoDB count
           console.log(`[${timestamp()}] 🔌 Fetching document count...`);
+
           const count = await getWaitlistCount();
           console.log(`[${timestamp()}] ✅ Count: ${count}`);
 
-          // Send reply
           await sendReply({ to: replyTo, subject, messageId, count });
           console.log(`[${timestamp()}] 📧 Reply sent to ${replyTo}`);
 
@@ -199,7 +180,6 @@ async function pollInbox() {
 
   } catch (err) {
     console.error(`[${timestamp()}] ❌ IMAP error:`, err.message);
-    // Try to close the connection cleanly
     try { await client.logout(); } catch (_) {}
   }
 }
@@ -223,7 +203,6 @@ async function main() {
   console.log(`   Interval : every ${CONFIG.trigger.pollIntervalMs / 1000}s`);
   console.log("   Press Ctrl+C to stop.\n");
 
-  // Run immediately on start, then on interval
   await pollInbox();
   setInterval(pollInbox, CONFIG.trigger.pollIntervalMs);
 }
