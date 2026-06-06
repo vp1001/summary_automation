@@ -3,10 +3,10 @@
  * -----------------------------------------
  * Polls your Gmail inbox every 30 seconds via IMAP.
  * When it finds an unread email with "GET_COUNT" in the subject,
- * it replies with the current MongoDB waitlist document count via Resend.
+ * it replies with the current MongoDB waitlist document count.
  *
  * SETUP:
- *   npm install imapflow mongodb resend
+ *   npm install imapflow mongodb nodemailer
  *
  * RUN:
  *   node waitlist_monitor.js
@@ -14,7 +14,7 @@
 
 const { ImapFlow } = require("imapflow");
 const { MongoClient } = require("mongodb");
-const { Resend } = require("resend");
+const nodemailer = require("nodemailer");
 
 // ---------------------------------------------------------------------------
 // CONFIG
@@ -25,9 +25,13 @@ const CONFIG = {
     user: "vedantp28@gmail.com",
     appPassword: "urxu dinj ztoo zewb",
   },
-  resend: {
-    apiKey: "re_PL6XuvXe_3dWuEBmrHd12HnnfRwBqwYRo",
-    from: "Waitlist Monitor <onboarding@resend.dev>", // free Resend sender
+  smtp: {
+    host: "mail.spacemail.com",
+    port: 465,
+    secure: true,
+    user: "system@elvnelvnparfums.com",
+    password: "123456789@Ak",
+    from: "Waitlist Monitor <system@elvnelvnparfums.com>",
   },
   mongo: {
     uri: "mongodb+srv://vedantp28_db_user:12349876@clusterelvn.f3spvav.mongodb.net/?appName=ClusterELVN",
@@ -39,8 +43,6 @@ const CONFIG = {
     pollIntervalMs: 30_000,
   },
 };
-
-const resend = new Resend(CONFIG.resend.apiKey);
 
 // ---------------------------------------------------------------------------
 // MongoDB — count documents
@@ -64,10 +66,23 @@ async function getWaitlistCount() {
 }
 
 // ---------------------------------------------------------------------------
-// Resend — send reply
+// Spacemail SMTP — send reply
 // ---------------------------------------------------------------------------
 
 async function sendReply({ to, subject, messageId, count }) {
+  const transporter = nodemailer.createTransport({
+    host: CONFIG.smtp.host,
+    port: CONFIG.smtp.port,
+    secure: CONFIG.smtp.secure,
+    auth: {
+      user: CONFIG.smtp.user,
+      pass: CONFIG.smtp.password,
+    },
+    connectionTimeout: 15000,
+    greetingTimeout: 15000,
+    socketTimeout: 20000,
+  });
+
   const now = new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
   const replySubject = subject.startsWith("Re:") ? subject : `Re: ${subject}`;
 
@@ -93,18 +108,24 @@ async function sendReply({ to, subject, messageId, count }) {
     </table>
   `;
 
-  const { error } = await resend.emails.send({
-    from: CONFIG.resend.from,
+  const text = [
+    `📋 Waitlist Report`,
+    `------------------`,
+    `Database   : ${CONFIG.mongo.database}`,
+    `Collection : ${CONFIG.mongo.collection}`,
+    `Count      : ${count.toLocaleString()}`,
+    `Checked at : ${now} IST`,
+  ].join("\n");
+
+  await transporter.sendMail({
+    from: CONFIG.smtp.from,
     to,
     subject: replySubject,
+    text,
     html,
-    headers: {
-      "In-Reply-To": messageId,
-      "References": messageId,
-    },
+    inReplyTo: messageId,
+    references: messageId,
   });
-
-  if (error) throw new Error(error.message);
 }
 
 // ---------------------------------------------------------------------------
