@@ -27,8 +27,9 @@ const CONFIG = {
   },
   smtp: {
     host: "mail.spacemail.com",
-    port: 465,
-    secure: true,
+    port: 587,
+    secure: false,
+    requireTLS: true,
     user: "system@elvnelvnparfums.com",
     password: "123456789@Ak",
     from: "Waitlist Monitor <system@elvnelvnparfums.com>",
@@ -74,6 +75,7 @@ async function sendReply({ to, subject, messageId, count }) {
     host: CONFIG.smtp.host,
     port: CONFIG.smtp.port,
     secure: CONFIG.smtp.secure,
+    requireTLS: CONFIG.smtp.requireTLS,
     auth: {
       user: CONFIG.smtp.user,
       pass: CONFIG.smtp.password,
