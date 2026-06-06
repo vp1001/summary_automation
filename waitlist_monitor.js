@@ -78,35 +78,84 @@ async function sendReply({ to, subject, messageId, count }) {
   const now = new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
   const replySubject = subject.startsWith("Re:") ? subject : `Re: ${subject}`;
 
-  const html = `
-    <h2 style="font-family:sans-serif;">📋 Waitlist Report</h2>
-    <table style="font-family:sans-serif; border-collapse:collapse;">
-      <tr>
-        <td style="padding:6px 16px 6px 0;color:#555;">Database</td>
-        <td><strong>${CONFIG.mongo.database}</strong></td>
-      </tr>
-      <tr>
-        <td style="padding:6px 16px 6px 0;color:#555;">Collection</td>
-        <td><strong>${CONFIG.mongo.collection}</strong></td>
-      </tr>
-      <tr>
-        <td style="padding:6px 16px 6px 0;color:#555;">Document count</td>
-        <td><strong style="font-size:1.4em;">${count.toLocaleString()}</strong></td>
-      </tr>
-      <tr>
-        <td style="padding:6px 16px 6px 0;color:#555;">Checked at</td>
-        <td>${now} IST</td>
-      </tr>
-    </table>
-  `;
+  const html = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Waitlist Report · ELVN ELVN</title>
+</head>
+<body style="margin:0;padding:0;background:#0e0c0a;font-family:Georgia,serif;">
+  <table width="100%" style="background:#0e0c0a;padding:32px 12px;">
+    <tr><td align="center">
+      <table width="560" style="background:#141210;border-radius:4px;overflow:hidden;border:1px solid #2a2118;">
+
+        <!-- Top gold line -->
+        <tr><td style="height:2px;background:linear-gradient(90deg,#8c7451 0%,#c4a882 50%,#8c7451 100%);padding:0;"></td></tr>
+
+        <!-- Header -->
+        <tr><td style="padding:36px 44px 28px;">
+          <div style="font-size:9px;letter-spacing:6px;color:#8c7451;text-transform:uppercase;margin-bottom:10px;">Elvn Elvn Parfums</div>
+          <div style="font-size:20px;color:#faf9f7;font-weight:400;letter-spacing:1px;">Waitlist Report</div>
+        </td></tr>
+
+        <!-- Divider -->
+        <tr><td style="padding:0 44px;"><div style="height:1px;background:#2a2118;"></div></td></tr>
+
+        <!-- Big count -->
+        <tr><td style="padding:40px 44px 32px;text-align:center;">
+          <div style="font-size:11px;letter-spacing:4px;color:#8c7451;text-transform:uppercase;margin-bottom:16px;">Total Signups</div>
+          <div style="font-size:72px;color:#c4a882;font-weight:300;letter-spacing:-2px;line-height:1;">${count.toLocaleString()}</div>
+          <div style="font-size:11px;letter-spacing:3px;color:#4a4035;text-transform:uppercase;margin-top:12px;">people waiting</div>
+        </td></tr>
+
+        <!-- Divider -->
+        <tr><td style="padding:0 44px;"><div style="height:1px;background:#2a2118;"></div></td></tr>
+
+        <!-- Meta row -->
+        <tr><td style="padding:24px 44px 32px;">
+          <table width="100%" style="border-collapse:collapse;">
+            <tr>
+              <td style="padding:10px 0;border-bottom:1px solid #1e1a14;">
+                <span style="font-size:10px;letter-spacing:3px;color:#4a4035;text-transform:uppercase;">Checked at</span>
+              </td>
+              <td style="padding:10px 0;border-bottom:1px solid #1e1a14;text-align:right;">
+                <span style="font-size:12px;color:#8c7a65;">${now} IST</span>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:10px 0;">
+                <span style="font-size:10px;letter-spacing:3px;color:#4a4035;text-transform:uppercase;">Collection</span>
+              </td>
+              <td style="padding:10px 0;text-align:right;">
+                <span style="font-size:12px;color:#8c7a65;">${CONFIG.mongo.collection}</span>
+              </td>
+            </tr>
+          </table>
+        </td></tr>
+
+        <!-- Bottom gold line -->
+        <tr><td style="height:2px;background:linear-gradient(90deg,#8c7451 0%,#c4a882 50%,#8c7451 100%);padding:0;"></td></tr>
+
+        <!-- Footer -->
+        <tr><td style="padding:18px 44px;text-align:center;">
+          <div style="font-size:10px;letter-spacing:3px;color:#2e2920;text-transform:uppercase;">
+            © ${new Date().getFullYear()} ELVN ELVN Parfums · Internal Report
+          </div>
+        </td></tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
 
   const text = [
-    `📋 Waitlist Report`,
-    `------------------`,
-    `Database   : ${CONFIG.mongo.database}`,
-    `Collection : ${CONFIG.mongo.collection}`,
-    `Count      : ${count.toLocaleString()}`,
-    `Checked at : ${now} IST`,
+    `ELVN ELVN PARFUMS — Waitlist Report`,
+    `------------------------------------`,
+    `Total Signups : ${count.toLocaleString()}`,
+    `Collection    : ${CONFIG.mongo.collection}`,
+    `Checked at    : ${now} IST`,
   ].join("\n");
 
   const { error } = await resend.emails.send({
