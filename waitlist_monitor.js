@@ -192,57 +192,59 @@ async function pollInbox() {
 
   try {
     await client.connect();
-    const lock = await client.getMailboxLock("INBOX");
 
     try {
-      const uids = await client.search(
-        { unseen: true, subject: CONFIG.trigger.keyword },
-        { uid: true }
-      );
+      const lock = await client.getMailboxLock("INBOX");
+      try {
+        const uids = await client.search(
+          { unseen: true, subject: CONFIG.trigger.keyword },
+          { uid: true }
+        );
 
-      if (uids.length === 0) {
-        console.log(`[${timestamp()}] No trigger emails found.`);
-        return;
-      }
+        if (uids.length === 0) {
+          console.log(`[${timestamp()}] No trigger emails found.`);
+        } else {
+          console.log(`[${timestamp()}] 🎯 Found ${uids.length} trigger email(s)!`);
 
-      console.log(`[${timestamp()}] 🎯 Found ${uids.length} trigger email(s)!`);
+          for (const uid of uids) {
+            await client.messageFlagsAdd({ uid }, ["\\Seen"], { uid: true });
+            console.log(`[${timestamp()}] ✔️  Marked UID ${uid} as read.`);
 
-      for (const uid of uids) {
-        // Mark as read FIRST — prevents re-triggering if later steps fail
-        await client.messageFlagsAdd({ uid }, ["\\Seen"], { uid: true });
-        console.log(`[${timestamp()}] ✔️  Marked UID ${uid} as read.`);
+            try {
+              const msg = await client.fetchOne(
+                uid,
+                { envelope: true },
+                { uid: true }
+              );
 
-        try {
-          const msg = await client.fetchOne(
-            uid,
-            { envelope: true },
-            { uid: true }
-          );
+              const from      = msg.envelope.from?.[0];
+              const replyTo   = from?.address;
+              const subject   = msg.envelope.subject || "GET_COUNT";
+              const messageId = msg.envelope.messageId;
 
-          const from      = msg.envelope.from?.[0];
-          const replyTo   = from?.address;
-          const subject   = msg.envelope.subject || "GET_COUNT";
-          const messageId = msg.envelope.messageId;
+              console.log(`[${timestamp()}] 📨 Triggered by: ${replyTo} — "${subject}"`);
+              console.log(`[${timestamp()}] 🔌 Fetching document count...`);
 
-          console.log(`[${timestamp()}] 📨 Triggered by: ${replyTo} — "${subject}"`);
-          console.log(`[${timestamp()}] 🔌 Fetching document count...`);
+              const count = await getWaitlistCount();
+              console.log(`[${timestamp()}] ✅ Count: ${count}`);
 
-          const count = await getWaitlistCount();
-          console.log(`[${timestamp()}] ✅ Count: ${count}`);
+              await sendReply({ to: replyTo, subject, messageId, count });
+              console.log(`[${timestamp()}] 📧 Reply sent to ${replyTo}`);
 
-          await sendReply({ to: replyTo, subject, messageId, count });
-          console.log(`[${timestamp()}] 📧 Reply sent to ${replyTo}`);
-
-        } catch (err) {
-          console.error(`[${timestamp()}] ❌ Error processing email UID ${uid}:`, err.message);
+            } catch (err) {
+              console.error(`[${timestamp()}] ❌ Error processing email UID ${uid}:`, err.message);
+            }
+          }
         }
+
+      } finally {
+        lock.release();
       }
 
     } finally {
-      lock.release();
+      // Always logout cleanly — prevents "Command failed" on stale connections
+      await client.logout();
     }
-
-    await client.logout();
 
   } catch (err) {
     console.error(`[${timestamp()}] ❌ IMAP error:`, err.message);
