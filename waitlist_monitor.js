@@ -1,20 +1,27 @@
 /**
- * MongoDB Waitlist Monitor — Email Trigger
+ * MongoDB Waitlist Monitor — Email Trigger (Resend API version)
  * -----------------------------------------
  * Polls your Gmail inbox every 30 seconds via IMAP.
  * When it finds an unread email with "GET_COUNT" in the subject,
- * it replies with the current MongoDB waitlist document count.
+ * it replies with the current MongoDB waitlist document count via Resend API.
  *
  * SETUP:
- *   npm install imapflow mongodb nodemailer
+ *   npm install imapflow mongodb resend
+ *
+ * RESEND DOMAIN SETUP (one time):
+ *   1. Go to https://resend.com/domains
+ *   2. Click "Add Domain" → enter: elvnelvnparfums.com
+ *   3. Add the DNS records they show you (in your domain registrar/cPanel)
+ *   4. Click "Verify" — takes 1-5 minutes
+ *   5. Then you can send from system@elvnelvnparfums.com freely
  *
  * RUN:
- *   node waitlist_monitor.js
+ *   node waitlist_monitor_resend.js
  */
 
 const { ImapFlow } = require("imapflow");
 const { MongoClient } = require("mongodb");
-const nodemailer = require("nodemailer");
+const { Resend } = require("resend");
 
 // ---------------------------------------------------------------------------
 // CONFIG
@@ -25,14 +32,9 @@ const CONFIG = {
     user: "vedantp28@gmail.com",
     appPassword: "urxu dinj ztoo zewb",
   },
-  smtp: {
-    host: "mail.spacemail.com",
-    port: 587,
-    secure: false,
-    requireTLS: true,
-    user: "system@elvnelvnparfums.com",
-    password: "123456789@Ak",
-    from: "Waitlist Monitor <system@elvnelvnparfums.com>",
+  resend: {
+    apiKey: "re_PL6XuvXe_3dWuEBmrHd12HnnfRwBqwYRo",
+    from: "Waitlist Monitor <no-reply@elvnelvnparfums.com>",
   },
   mongo: {
     uri: "mongodb+srv://vedantp28_db_user:12349876@clusterelvn.f3spvav.mongodb.net/?appName=ClusterELVN",
@@ -44,6 +46,8 @@ const CONFIG = {
     pollIntervalMs: 30_000,
   },
 };
+
+const resend = new Resend(CONFIG.resend.apiKey);
 
 // ---------------------------------------------------------------------------
 // MongoDB — count documents
@@ -67,24 +71,10 @@ async function getWaitlistCount() {
 }
 
 // ---------------------------------------------------------------------------
-// Spacemail SMTP — send reply
+// Resend API — send reply
 // ---------------------------------------------------------------------------
 
 async function sendReply({ to, subject, messageId, count }) {
-  const transporter = nodemailer.createTransport({
-    host: CONFIG.smtp.host,
-    port: CONFIG.smtp.port,
-    secure: CONFIG.smtp.secure,
-    requireTLS: CONFIG.smtp.requireTLS,
-    auth: {
-      user: CONFIG.smtp.user,
-      pass: CONFIG.smtp.password,
-    },
-    connectionTimeout: 15000,
-    greetingTimeout: 15000,
-    socketTimeout: 20000,
-  });
-
   const now = new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
   const replySubject = subject.startsWith("Re:") ? subject : `Re: ${subject}`;
 
@@ -119,15 +109,19 @@ async function sendReply({ to, subject, messageId, count }) {
     `Checked at : ${now} IST`,
   ].join("\n");
 
-  await transporter.sendMail({
-    from: CONFIG.smtp.from,
+  const { error } = await resend.emails.send({
+    from: CONFIG.resend.from,
     to,
     subject: replySubject,
-    text,
     html,
-    inReplyTo: messageId,
-    references: messageId,
+    text,
+    headers: {
+      "In-Reply-To": messageId,
+      "References": messageId,
+    },
   });
+
+  if (error) throw new Error(error.message);
 }
 
 // ---------------------------------------------------------------------------
