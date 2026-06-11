@@ -4,12 +4,14 @@
   "description": "MongoDB waitlist monitor triggered by email",
   "main": "waitlist_monitor.js",
   "scripts": {
-    "start": "node waitlist_monitor.js"
+    "start": "node waitlist_monitor.js",
+    "test:email": "node waitlist_monitor.js --test vedantp28@gmail.com"
   },
   "dependencies": {
     "imapflow": "^1.0.162",
     "mongodb": "^6.8.0",
     "resend": "^3.4.0",
-    "nodemailer": "^6.9.14"
+    "nodemailer": "^6.9.14",
+    "exceljs": "^4.4.0"
   }
 }
